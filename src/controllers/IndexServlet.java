@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.List;
 
 import javax.persistence.EntityManager;
+import javax.servlet.RequestDispatcher;
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
@@ -31,17 +32,48 @@ public class IndexServlet extends HttpServlet {
     /**
      * @see HttpServlet#doGet(HttpServletRequest request, HttpServletResponse response)
      */
-    protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-       EntityManager em = DBUtil.createEntityManager();
+    protected void doGet(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        EntityManager em = DBUtil.createEntityManager();
 
-       List<Tasks> tasks = em.createNamedQuery("getAllTasks", Tasks.class).getResultList();
+        //開くページ数を取得
+        int page = 1;
+        try {
+            page = Integer.parseInt(request.getParameter("page"));
 
-       response.getWriter().append(Integer.valueOf(tasks.size()).toString());
+        } catch (NumberFormatException e) {
+        }
 
-       em.close();
+        //最大件数と開始位置を指定してメッセージを取得
+        List<Tasks> tasks = em.createNamedQuery("getAllTasks", Tasks.class)
+                .setFirstResult(15 * (page - 1))
+                .setMaxResults(15)
+                .getResultList();
+
+        //全件数を取得
+        long tasks_count = (long)em.createNamedQuery("getTaskksCount",Long.class)
+                .getSingleResult();
+
+
+        em.close();
+
+        //データベースから取得したメッセージ一覧（tasks）をリクエストスコープにセットする
+        request.setAttribute("tasks", tasks);
+        request.setAttribute("tasks_count", tasks_count);
+        request.setAttribute("page", page);
+
+        //フラッシュメッセージがセッションスコープにセットされていたら、
+        //セッションスコープからは削除して、リクエストスコープに保存
+        if(request.getSession().getAttribute("flush") != null ){
+            request.setAttribute("flush", request.getSession().getAttribute("flush"));
+            request.getSession().removeAttribute("flush");
+        }
+
+
+        //index.jspを呼び出す（ディスパッチ）
+        RequestDispatcher rd = request.getRequestDispatcher("/WEB-INF/views/tasks/index.jsp");
+        rd.forward(request, response);
 
     }
-
-
 
 }
